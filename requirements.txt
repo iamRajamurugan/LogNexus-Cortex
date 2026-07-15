@@ -1,0 +1,10 @@
+streamlit
+python-dotenv
+google-genai
+langchain
+langchain-google-genai
+pinecone
+plotly
+reportlab
+pydantic
+pytest
