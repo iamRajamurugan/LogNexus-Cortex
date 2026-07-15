@@ -17,8 +17,18 @@ load_dotenv(ENV_PATH)
 load_dotenv()
 
 
+# def _get_env_str(name: str, default: str = "") -> str:
+# 	return os.getenv(name, default).strip()
 def _get_env_str(name: str, default: str = "") -> str:
-	return os.getenv(name, default).strip()
+    try:
+        import streamlit as st
+
+        if name in st.secrets:
+            return str(st.secrets[name]).strip()
+    except Exception:
+        pass
+
+    return os.getenv(name, default).strip()
 
 
 def _get_env_int(name: str, default: int) -> int:
