@@ -10,7 +10,13 @@ from src.config import get_settings
 from src.core import LogChunker, LogFileInput, LogParser
 from src.models.analysis_response import AnalysisType
 from src.services.analysis_service import AnalysisService, AnalysisServiceError
-from src.services.exceptions import EmbeddingServiceError, PineconeServiceError
+from src.services.exceptions import (
+    EmbeddingServiceError,
+    InvalidApiKeyError,
+    PineconeServiceError,
+    QuotaExceededError,
+    TransientEmbeddingError,
+)
 from src.ui.components import (
     render_analysis_response,
     render_chat_controls,
@@ -58,6 +64,54 @@ def _process_uploaded_logs(session_state: object, uploaded_files: list[UploadedL
 
     try:
         indexing_result = indexing_pipeline.index_chunks(chunks)
+    except QuotaExceededError as exc:
+        error_message = str(exc)
+        session_state["processing_error"] = error_message
+        session_state["logs_indexed"] = False
+        session_state["processed_chunks"] = chunks
+        summary = ProcessingSummary(
+            files_uploaded=len(uploaded_files),
+            events_parsed=len(parsed_events),
+            chunks_created=len(chunks),
+            vectors_stored=0,
+            processing_time_seconds=perf_counter() - start_time,
+            last_run_at=None,
+            status_message=error_message,
+        )
+        session_state["processing_summary"] = summary
+        return
+    except InvalidApiKeyError as exc:
+        error_message = str(exc)
+        session_state["processing_error"] = error_message
+        session_state["logs_indexed"] = False
+        session_state["processed_chunks"] = chunks
+        summary = ProcessingSummary(
+            files_uploaded=len(uploaded_files),
+            events_parsed=len(parsed_events),
+            chunks_created=len(chunks),
+            vectors_stored=0,
+            processing_time_seconds=perf_counter() - start_time,
+            last_run_at=None,
+            status_message=error_message,
+        )
+        session_state["processing_summary"] = summary
+        return
+    except TransientEmbeddingError as exc:
+        error_message = str(exc)
+        session_state["processing_error"] = error_message
+        session_state["logs_indexed"] = False
+        session_state["processed_chunks"] = chunks
+        summary = ProcessingSummary(
+            files_uploaded=len(uploaded_files),
+            events_parsed=len(parsed_events),
+            chunks_created=len(chunks),
+            vectors_stored=0,
+            processing_time_seconds=perf_counter() - start_time,
+            last_run_at=None,
+            status_message=error_message,
+        )
+        session_state["processing_summary"] = summary
+        return
     except (EmbeddingServiceError, PineconeServiceError) as exc:
         session_state["processing_error"] = str(exc)
         session_state["logs_indexed"] = False
@@ -121,7 +175,7 @@ def main() -> None:
     if process_clicked:
         _process_uploaded_logs(st.session_state, uploaded_files)
         if st.session_state["processing_error"]:
-            st.sidebar.error(st.session_state["processing_error"])
+			st.sidebar.error(st.session_state["processing_error"])
         else:
             st.sidebar.success("Logs processed and indexed.")
 

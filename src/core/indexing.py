@@ -8,7 +8,13 @@ from typing import Sequence
 
 from src.models import LogChunk
 from src.services.chunk_store import ChunkStore
-from src.services.exceptions import EmbeddingServiceError, PineconeServiceError
+from src.services.exceptions import (
+	EmbeddingServiceError,
+	InvalidApiKeyError,
+	PineconeServiceError,
+	QuotaExceededError,
+	TransientEmbeddingError,
+)
 from src.services.gemini import GeminiEmbeddingService
 from src.services.pinecone import PineconeService, PineconeVectorRecord
 
@@ -33,7 +39,7 @@ class LogIndexingPipeline:
 		embedding_service: GeminiEmbeddingService | None = None,
 		pinecone_service: PineconeService | None = None,
 		chunk_store: ChunkStore | None = None,
-		batch_size: int = 32,
+		batch_size: int = 8,
 	) -> None:
 		self.embedding_service = embedding_service or GeminiEmbeddingService()
 		self.pinecone_service = pinecone_service or PineconeService()
@@ -89,6 +95,8 @@ class LogIndexingPipeline:
 
 		try:
 			embeddings = self.embedding_service.embed_texts(texts)
+		except (QuotaExceededError, InvalidApiKeyError, TransientEmbeddingError):
+			raise
 		except EmbeddingServiceError:
 			logger.warning("Batch embedding failed; falling back to per-chunk embedding.")
 			return self._embed_batch_individually(valid_chunks, skipped_chunk_ids)
@@ -109,6 +117,8 @@ class LogIndexingPipeline:
 		for chunk in chunks:
 			try:
 				embedding = self.embedding_service.embed_chunk(chunk)
+			except (QuotaExceededError, InvalidApiKeyError, TransientEmbeddingError):
+				raise
 			except EmbeddingServiceError:
 				logger.warning("Skipping chunk %s because embedding generation failed.", chunk.chunk_id)
 				skipped_chunk_ids.append(chunk.chunk_id)
